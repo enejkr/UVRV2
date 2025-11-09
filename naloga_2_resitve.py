@@ -6,14 +6,22 @@ from matplotlib.pyplot import figure
 
 
 def binarna_segmentacija(slika: np.ndarray) -> np.ndarray:
-    #pridobim spekter
-    siv = slika.mean(axis=2)
-    T = 0.65
-    #ohranim vrednosti nad 0.65 (0.65) da lahko ta nacin pridobivanje maske
-    #deluje tudi pri drugi nalogi
-    mask = siv > T
-    return mask
+    if not isinstance(slika, np.ndarray):
+        raise TypeError('Expected numpy array')
 
+    if slika.ndim == 3:
+        # convert color to grayscale by averaging channels
+        siv = slika.mean(axis=2)
+    elif slika.ndim == 2:
+        siv = slika
+    else:
+        raise ValueError(f'Unsupported image ndim: {slika.ndim}')
+
+    # simple global threshold: pixels greater than mean -> foreground
+    thresh = siv.mean()
+    mask = siv > thresh
+
+    return mask.astype(bool)
 def izrezi_regije(slika: np.ndarray, maska: np.ndarray) -> list[np.ndarray]:
     # invertam masko in poskrbim da je v bool
     maska = np.logical_not(maska.astype(bool))
@@ -181,9 +189,9 @@ def pripravi_filter_plus(plus_patches: list[np.ndarray], x_patches: list[np.ndar
     mu_neg = X.mean(axis=0)
 
     #  podarim krizane pixle
-    v = mu_pos - mu_neg
-    # #  podarim ZA X
-    # v = mu_neg - mu_pos
+    #v = mu_pos - mu_neg za x
+    # #  podarim ZA pl8us
+    v = mu_neg - mu_pos
 
     # normaliziram uporaba formule
     norm = np.sqrt(np.sum(v * v))
@@ -192,44 +200,30 @@ def pripravi_filter_plus(plus_patches: list[np.ndarray], x_patches: list[np.ndar
 
 
 def detekcija_plus(slika: np.ndarray, filter: np.ndarray) -> np.ndarray:
-    # normaliziranje vhoda
-    img = cv2.cvtColor(slika, cv2.COLOR_BGR2GRAY).astype(np.float32)
-
+    # convert to single-channel float32 using existing helper (handles 2D and 3-channel)
+    img = _to_gray_f32(slika)
+    #MAKINg sure the filter is float32
     tpl = filter.astype(np.float32)
     h, w = tpl.shape
-    #korelacija lahko tudi uporabil coralate iz prejsnje vaje
+
+    # normalized cross-correlation response
     resp = cv2.matchTemplate(img, tpl, cv2.TM_CCOEFF_NORMED)
-    figure()
-    plt.imshow(resp)
 
-    # flip if one side domenates TODO check why neccesary
-    # if abs(resp.min()) > abs(resp.max()):
-    #     resp = -resp
-
-    figure()
-    plt.imshow(resp)
     nms_radius = max(2, int(round(min(h, w) / 4)))
-    #size = 2 * nms_radius + 1
     resp_max = ndimage.maximum_filter(resp, size=nms_radius, mode="nearest")
-    is_max = resp == resp_max  # Boolean mask for local maxima.
+    is_max = resp == resp_max
 
-    # threshold katere obdrzim
     thr = 0.4
-    #thr = 0.25 ZA X
     keep = is_max & (resp >= thr)
 
-    # pridobim ostale vrednosti
     ys, xs = np.nonzero(keep)
     if ys.size == 0:
         return np.empty((0, 2), dtype=int)
 
     scores = resp[ys, xs]
-
-    # pridobivanje centra
     ys = ys + h // 2
     xs = xs + w // 2
 
-    # sort detections by descending score.
     order = np.argsort(-scores)
     coords = np.column_stack([ys[order].astype(int), xs[order].astype(int)])
     return coords
