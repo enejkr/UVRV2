@@ -47,26 +47,6 @@ def izrezi_regije(slika: np.ndarray, maska: np.ndarray) -> list[np.ndarray]:
 
 
 def detekcija_4_kotnikov(slika: np.ndarray) -> list[np.ndarray]:
-    """
-    Detect quadrilateral contours and return their 4 corner points in (y, x) order.
-
-    Pipeline:
-      1) Convert to grayscale if input is color.
-      2) Normalize to 8-bit range [0, 255] for stable thresholding.
-      3) Apply a fixed binary inverse threshold (value = 100) to separate foreground.
-      4) Find external contours.
-      5) Approximate each contour with a polygon (epsilon = 2% perimeter).
-      6) Keep only 4-vertex polygons with sufficient area.
-      7) Convert points from (x, y) to (y, x) and collect.
-
-    Parameters:
-      slika : np.ndarray
-        Input image, grayscale or BGR color.
-
-    Returns:
-      list[np.ndarray]
-        Each element is a (4, 2) array of corner coordinates in (y, x).
-    """
     # spravim v greysale in
     gray = cv2.cvtColor(slika, cv2.COLOR_BGR2GRAY) if len(slika.shape) == 3 else slika
 
@@ -202,6 +182,8 @@ def pripravi_filter_plus(plus_patches: list[np.ndarray], x_patches: list[np.ndar
 
     #  podarim krizane pixle
     v = mu_pos - mu_neg
+    # #  podarim ZA X
+    # v = mu_neg - mu_pos
 
     # normaliziram uporaba formule
     norm = np.sqrt(np.sum(v * v))
@@ -221,10 +203,11 @@ def detekcija_plus(slika: np.ndarray, filter: np.ndarray) -> np.ndarray:
     plt.imshow(resp)
 
     # flip if one side domenates TODO check why neccesary
-    if abs(resp.min()) > abs(resp.max()):
-        resp = -resp
+    # if abs(resp.min()) > abs(resp.max()):
+    #     resp = -resp
 
-
+    figure()
+    plt.imshow(resp)
     nms_radius = max(2, int(round(min(h, w) / 4)))
     #size = 2 * nms_radius + 1
     resp_max = ndimage.maximum_filter(resp, size=nms_radius, mode="nearest")
@@ -232,6 +215,7 @@ def detekcija_plus(slika: np.ndarray, filter: np.ndarray) -> np.ndarray:
 
     # threshold katere obdrzim
     thr = 0.4
+    #thr = 0.25 ZA X
     keep = is_max & (resp >= thr)
 
     # pridobim ostale vrednosti
